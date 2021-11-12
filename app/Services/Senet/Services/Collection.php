@@ -9,7 +9,8 @@ class Collection
     protected function getHeaders() : array
     {
         return [
-            'Authorization' => 'Bearer ',//TODO get bearer cache
+            'Authorization' => 'Key '.env('SENET_APP_KEY'),
+            //'Authorization' => 'Bearer ',
             'Content-Type'  =>  'application/json',
         ];
     }

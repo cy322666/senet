@@ -7,72 +7,29 @@ use App\Services\amoCRM\Client;
 
 abstract class Contacts extends Client
 {
-    public static function search($arrayFields, $client)
+    public static function search($phone, $client)
     {
-        $contacts = null;
+        $contacts = $client->service
+            ->contacts()
+            ->searchByPhone(substr($phone, -10));
 
-        if(key_exists('Телефоны', $arrayFields)) {
-
-            $phones = json_decode($arrayFields['Телефоны']);
-
-            foreach ($phones as $phone) {
-
-                $contacts = $client->service
-                    ->contacts()
-                    ->searchByPhone(substr($phone, -10));
-            }
-        }
-
-        if($contacts == null && key_exists('Почта', $arrayFields)) {
-
-            $contacts = $client->service
-                ->contacts()
-                ->searchByEmail($arrayFields['Почта']);
-        }
-
-        if($contacts !== null && $contacts->first())
-            return $contacts->first();
-        else
-            return null;
+        return $contacts ?? null;
     }
 
-    public static function update($contact, $arrayFields = [])
+    public static function update($contact, $arrayFields = [], $arrayParams = [])
     {
-        if(key_exists('Телефоны', $arrayFields)) {
+        if(count($arrayParams) > 0) {
 
-            $phones = json_decode($arrayFields['Телефоны']);
-
-            foreach ($phones as $phone) {
-
-                $contact->cf('Телефон')->setValue($phone);
-            }
-        }
-
-        if(key_exists('Почта', $arrayFields)) {
-
-            $contact->cf('Email')->setValue($arrayFields['Почта']);
-        }
-
-        if(key_exists('Имя', $arrayFields)) {
-
-            $contact->name = $arrayFields['Имя'];
-        }
-
-        if(key_exists('cf', $arrayFields)) {
-
-            foreach ($arrayFields['cf'] as $fieldsName => $fieldValue) {
+            foreach ($arrayFields as $fieldsName => $fieldValue) {
 
                 if(strpos($fieldsName, 'Дата') == true) {
 
                     $contact->cf($fieldsName)->setData($fieldValue);
-                }
-                $contact->cf($fieldsName)->setValue($fieldValue);
+                } else
+                    $contact->cf($fieldsName)->setValue($fieldValue);
             }
         }
-
-        $contact->save();
-
-        return $contact;
+        return $contact->save();
     }
 
     public static function create(Client $amoapi, $name = 'Неизвестно')

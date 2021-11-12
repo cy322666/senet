@@ -54,25 +54,35 @@ abstract class Leads
         }
     }
 
-    public static function create($contact, array $params, string $leadname)
+    public static function create($contact, array $fields, array $params)
     {
         $lead = $contact->createLead();
 
-        $lead->name = $leadname;
+        if(count($fields) > 0) {
 
-        if(!empty($params['sale']))
-            $lead->sale = $params['sale'];
+            foreach ($fields as $fieldsName => $fieldValue) {
 
-        if(!empty($params['responsible_user_id']))
-            $lead->responsible_user_id = $params['responsible_user_id'];
+                if(strpos($fieldsName, 'Дата') == true) {
 
-        if(!empty($params['status_id']))
-            $lead->status_id = $params['status_id'];
+                    $lead->cf($fieldsName)->setData($fieldValue);
+                } else
+                    $lead->cf($fieldsName)->setValue($fieldValue);
+            }
+        }
 
-        $lead->contacts_id = $contact->id;
-        $lead->save();
+        if(count($params) > 0) {
 
-        return $lead;
+            foreach ($params as $fieldsName => $fieldValue) {
+
+                if(strpos($fieldsName, 'Дата') == true) {
+
+                    $lead->cf($fieldsName)->setData($fieldValue);
+                } else
+                    $lead->cf($fieldsName)->setValue($fieldValue);
+            }
+        }
+
+        return $lead->save();
     }
 
     public static function update($lead, array $params, array $fields)

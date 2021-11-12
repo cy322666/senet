@@ -3,34 +3,23 @@
 
 namespace App\Services\Senet\Services;
 
-
-use App\Services\Yandex\Auth;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 
 class ActivityCollection extends Collection
 {
-    private $auth;
-
-    const URL = 'https://fleet-api.taxi.yandex.net/v1/parks/driver-profiles/list';
-
-    public function __construct(Auth $auth)
-    {
-        $this->auth = $auth;
-    }
-
     public function all()
     {
-        $url = '';
+        $url = 'https://'.env('SENET_SUBDOMAIN').'.api.enes.tech/reports/user_activity/?format=json&from_date=2020-01-01T12:22:22-03&office_id=1&to_date='.date('Y-m-d').'T12:22:22';
 
         $response = Http::withHeaders(self::getHeaders())
-            ->post($url, []);
+            ->get($url, []);
 
         if($response->status() !== 200) {
 
             print_r($response->body());exit;
 
         } else
-            return collect($response);
+            return collect(json_decode($response->body(), true));
     }
 }

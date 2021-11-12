@@ -19,15 +19,11 @@ class Client
 
     public function init(string $widget = null): Client
     {
-        $account = Account::where('service', 'amocrm')->first();
-
-        //Oauthapi::setOauthStorage(new AccountStorage([]));
-
         $this->service = Oauthapi::setInstance([
-            'domain'        => $account->subdomain,
-            'client_id'     => $account->client_id,
-            'client_secret' => $account->client_secret,
-            'redirect_uri'  => $account->redirect_uri,//TODO env защить
+            'domain' => env('AMO_DOMAIN'),
+            'client_id' => env('AMO_CLIENT_ID'),
+            'client_secret' => env('AMO_CLIENT_SECRET'),
+            'redirect_uri' => env('AMO_REDIRECT_URI'),
         ]);
 
         \Ufee\Amo\Services\Account::setCacheTime(3600);
@@ -41,38 +37,15 @@ class Client
 
         } catch (\Exception $exception) {
 
-            if ($account->refresh_token) {
+            try {
 
-                $this->service->onAccessTokenRefresh(function ($access, $account) {
+                $this->service->fetchAccessToken(env('AMO_CODE'));
 
-                    $account->access_token  = $access['access_token'];
-                    $account->refresh_token = $access['refresh_token'];
-                    $account->save();
-                });
+            } catch (\Exception $exception) {
 
-            } else {
-
-                try {
-
-                    $access = $this->service->fetchAccessToken(env('AMO_CODE'));
-
-                    $account->expires_in = $access['expires_in'];
-                    $account->access_token = $access['access_token'];
-                    $account->refresh_token = $access['refresh_token'];
-                    $account->save();
-
-                } catch (\Exception $exception) {
-
-                    dd($exception->getMessage());
-                }
+                $this->service->refreshAccessToken();
             }
         }
-
-//            $this->service->fetchAccessToken($account->code);
-//
-//            if($account->refresh_token)
-//
-//                $this->service->refreshAccessToken($account->refresh_token);
 
         return $this;
     }

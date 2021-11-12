@@ -5,20 +5,19 @@ namespace App\Services\Senet\Services;
 
 
 use App\Services\Senet\Services\Collection;
-use App\Services\Yandex\Auth;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 
 class AccountCollection extends Collection
 {
-    const URL = '';
-
     public function all(string $filterdate = null)
     {
+        $url = 'https://'.env('SENET_SUBDOMAIN').'.api.enes.tech/account/?format=json';
+
         $headers = self::getHeaders();
 
         $response = Http::withHeaders($headers)
-            ->post(self::URL, []);
+            ->get($url, []);
 
         if($response->status() !== 200) {
 
@@ -32,7 +31,7 @@ class AccountCollection extends Collection
 
                 dd($response['message'].' park_id : '.$this->auth->park_id);
             } else
-                return collect($response['driver_profiles']);
+                return collect($response);
         }
     }
 }

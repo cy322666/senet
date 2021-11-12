@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Account;
+use App\Services\amoCRM\Client;
 use App\Services\amoCRM\Helpers\Contacts;
 use App\Services\amoCRM\Helpers\Leads;
 use App\Services\Senet\Services\AccountCollection;
@@ -17,24 +18,20 @@ class AccountController extends Controller
 
         foreach ($accounts as $account) {
 
-            $model = Account::updateOrCreate(
-                //TODO сюда же?
-            );
+            $model = Account::where('login', $account['login'])->first();
 
-            $model->firstname = $account;
-            $model->last_name = $account;
-            $model->phone = $account;//login
-            $model->registration_date = $account;//registration_date
-            $model->sum_sale = $account;//account_amount
-            $model->last_login_date = $account;//last_login_date
-            $model->count_session = $account;//number_of_visits
+            if(!$model) $model = new Account();
+
+            $model->birth_date = $account['birth_date'];
+            $model->first_name  = $account['name'];
+            $model->last_name  = $account['last_name'];
+            $model->login      = $account['login'];
+            $model->registration_date = $account['registration_date'];
+            $model->sum_sale        = explode('.', $account['account_amount'])[0];
+            $model->current_date = $account['last_login_date'];
+            $model->count_session   = $account['number_of_visits'];
 
             $model->save();
-
-            if($model->isDirty()) {
-
-                //измененная модель уже находившаяся
-            }
         }
     }
 
@@ -44,78 +41,63 @@ class AccountController extends Controller
 
         foreach ($activities as $activity) {
 
-            $model = Account::updateOrCreate([
+            $model = Account::where('login', $activity['User login'])->first();
 
-            ]);
+            if($model) {
 
-            $model->save();
+                $model->spent_sale = $activity['Spent sum'];
+                $model->avg_sale = $activity['Average check'];
 
-            if($model->isDirty()) {
 
-                //измененная модель уже находившаяся
+                $model->avg_session = $activity['Average session time (hour)'];
+
+                $model->monday = $activity['Monday'];
+                $model->tuesday = $activity['Tuesday'];
+                $model->wednesday = $activity['Wednesday'];
+                $model->thursday = $activity['Thursday'];
+                $model->friday = $activity['Friday'];
+                $model->saturday = $activity['Saturday'];
+                $model->sunday = $activity['Sunday'];
+
+                $model->status = 'Обогащено';
+                $model->save();
             }
         }
     }
 
-    public function send_activity()
-    {
-
-    }
-
+    //отправка новых
     public function send_account()
     {
-        $accounts = Account::where('status', 'Добавлено')->get();//TODO два статуса для измененных тоже
+        $accounts = Account::where('status', 'Добавлено')->get();
 
         if($accounts->count() > 0) {
 
+            $amocrm = (new Client())->init();
+
             foreach ($accounts as $account) {
 
-                try {
-                    $contact = Contacts::search();
+                $contact = Contacts::search($account->phone, $amocrm) ?? Contacts::create($amocrm, $account->first_name.' '.$account->last_name);
 
-                    if(!$contact) {
+                $contact = Contacts::update($contact, [
+                    'Телефон'       => $account->login,
+                    'Дата рождения' => $account->birth_date,
 
-                        $contact = Contacts::create();
+                ], ['name' => $account->first_name.' '.$account->last_name]);
 
-                        $lead = Leads::create();
+                $lead = Leads::create($contact, [
+                    'Дата регистрации' => $account->registration_date,
+                ], [
+                    'status_id'   => env('AMO_STATUS_DAY_1'),
+                    'pipeline_id' => env('AMO_PIPELINE_ID'),
+                    'name'        => 'Новый лид Senet',
+                ]);
 
-                    } else
-                        $lead = Leads::search();
-
-                    $account->pipeline_id = $lead->pipeline_id;
-                    $account->status_id = $lead->status_id;
-                    $account->contact_id = $contact->id;
-                    $account->status = 'Отработан новый';
-                    $account->save();
-
-                } catch (Exception $exception) {
-
-                    $account->status = $exception->getMessage();
-                    $account->save();
-                }
+                $account->pipeline_id = $lead->pipeline_id;
+                $account->lead_id = $lead->id;
+                $account->contact_id = $contact->id;
+                $account->status = 'Отработано';
+                $account->save();
             }
-        }
-    }
-
-    public function all()
-    {
-        \App\Services\Senet\Auth::auth();
-
-        $accounts = (new AccountCollection())->all();
-
-        foreach ($accounts as $account) {
-
-            $model = Account::create();
-
-            $model->firstname = $account;
-            $model->last_name = $account;
-            $model->phone = $account;//login
-            $model->registration_date = $account;//registration_date
-            $model->sum_sale = $account;//account_amount
-            $model->last_login_date = $account;//last_login_date
-            $model->count_session = $account;//number_of_visits
-
-            $model->save();
         }
     }
 }
