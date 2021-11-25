@@ -9,7 +9,16 @@ class Account extends Model
 {
     use HasFactory;
 
-    protected $fillable = [];
+    protected $fillable = [
+        'birth_date',
+        'first_name',
+        'last_name',
+        'login',
+        'registration_date',
+        'sum_sale',
+        'current_date',
+        'count_session',
+    ];
 
     public static function getLastDays(string $lastDays) : int
     {
