@@ -28,7 +28,7 @@ class Client
 
         \Ufee\Amo\Services\Account::setCacheTime(3600);
 
-        $this->service->queries->setDelay(0.5);
+        $this->service->queries->setDelay(1);
         $this->service->queries->cachePath(storage_path('amocrm/cache'));
 
         try {

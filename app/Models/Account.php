@@ -28,4 +28,14 @@ class Account extends Model
 
         return round(floor($seconds / 86400));
     }
+
+    public static function getStatusId(int $count_sessions)
+    {
+        return $count_sessions < 9 ? env('AMO_STATUS_DAY_'.$count_sessions) : env('AMO_STATUS_DAY_10');
+    }
+
+    public static function getPipelineId(int $count_sessions)
+    {
+        return $count_sessions < 9 ? env('AMO_PIPELINE_ID') : env('AMO_PIPELINE_ID_10');
+    }
 }

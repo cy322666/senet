@@ -2,7 +2,6 @@
 
 namespace App\Services\amoCRM\Helpers;
 
-use App\Models\Api\Viewer;
 use App\Services\amoCRM\Client;
 
 abstract class Contacts extends Client
@@ -13,7 +12,7 @@ abstract class Contacts extends Client
             ->contacts()
             ->searchByPhone(substr($phone, -10));
 
-        return $contacts ?? null;
+        return $contacts->first() ?? null;
     }
 
     public static function update($contact, $arrayFields = [], $arrayParams = [])
@@ -29,7 +28,9 @@ abstract class Contacts extends Client
                     $contact->cf($fieldsName)->setValue($fieldValue);
             }
         }
-        return $contact->save();
+        $contact->save();
+
+        return $contact;
     }
 
     public static function create(Client $amoapi, $name = 'Неизвестно')

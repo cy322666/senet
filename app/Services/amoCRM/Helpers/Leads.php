@@ -3,8 +3,6 @@
 
 namespace App\Services\amoCRM\Helpers;
 
-
-use App\Models\Api\Setting;
 use App\Services\amoCRM\Client;
 use Illuminate\Support\Facades\Log;
 
@@ -32,7 +30,7 @@ abstract class Leads
     }
 
     //поиск активных в воронке
-    public static function search($contact, $client, int $pipeline_id = null) : array
+    public static function search($contact, $client, int $pipeline_id = null)
     {
         $leads = [];
 
@@ -54,23 +52,19 @@ abstract class Leads
         }
     }
 
-    public static function create($contact, array $fields, array $params)
+    public static function create($contact, array $params, array $fields)
     {
         $lead = $contact->createLead();
 
-        if(count($fields) > 0) {
+        if(count($params) > 0) {
 
-            foreach ($fields as $fieldsName => $fieldValue) {
+            foreach ($params as $key => $param) {
 
-                if(strpos($fieldsName, 'Дата') == true) {
-
-                    $lead->cf($fieldsName)->setData($fieldValue);
-                } else
-                    $lead->cf($fieldsName)->setValue($fieldValue);
+                $lead->$key = $param;
             }
         }
 
-        if(count($params) > 0) {
+        if(count($fields) > 0) {
 
             foreach ($params as $fieldsName => $fieldValue) {
 
@@ -82,7 +76,9 @@ abstract class Leads
             }
         }
 
-        return $lead->save();
+        $lead->save();
+
+        return $lead;
     }
 
     public static function update($lead, array $params, array $fields)
@@ -93,17 +89,22 @@ abstract class Leads
 
                 foreach ($fields as $key => $field) {
 
-                    $lead->cf($key)->setValue($field);
+                    if(strpos($key, 'Дата')  === false)
+
+                        $lead->cf($key)->setValue($field);
+                    else
+                        $lead->cf($key)->setDate($field);
                 }
             }
 
-            if(!empty($params['responsible_user_id']))
-                $lead->responsible_user_id = $params['responsible_user_id'];
+            if(count($params) > 0) {
 
-            if(!empty($params['status_id']))
-                $lead->status_id = $params['status_id'];
+                foreach ($params as $key => $param) {
 
-            $lead->updated_at = time() + 2;
+                    $lead->$key = $param;
+                }
+            }
+
             $lead->save();
 
             return $lead;

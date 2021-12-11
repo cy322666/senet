@@ -19,12 +19,8 @@ Route::middleware('auth:sanctum')->get('/user', function (Request $request) {
     return $request->user();
 });
 
-Route::get('all', [ AccountController::class, 'all' ]);
-
 Route::get('account', [ AccountController::class, 'account' ]);
 
 Route::get('activity', [ AccountController::class, 'activity' ]);
 
-Route::post('send_activity', [ AccountController::class, 'send_activity' ]);
-
-Route::post('send_account', [ AccountController::class, 'send_account' ]);
+Route::get('send', [ AccountController::class, 'send' ]);

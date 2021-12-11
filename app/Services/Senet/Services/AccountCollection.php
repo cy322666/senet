@@ -29,9 +29,9 @@ class AccountCollection extends Collection
 
             if(!empty($response['message'])) {
 
-                dd($response['message'].' park_id : '.$this->auth->park_id);
+                dd($response['message']);
             } else
-                return collect($response);
+                return $response;
         }
     }
 }
