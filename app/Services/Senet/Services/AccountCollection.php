@@ -29,7 +29,7 @@ class AccountCollection extends Collection
 
             if(!empty($response['message'])) {
 
-                dd($response['message']);
+                Log::error(__METHOD__.' : '.json_encode($response['message']));
             } else
                 return $response;
         }

@@ -8,6 +8,8 @@ use App\Services\amoCRM\Helpers\Contacts;
 use App\Services\amoCRM\Helpers\Leads;
 use App\Services\Senet\Services\AccountCollection;
 use App\Services\Senet\Services\ActivityCollection;
+use Carbon\Carbon;
+use Illuminate\Support\Facades\Log;
 use Mockery\Exception;
 
 class AccountController extends Controller
@@ -19,8 +21,8 @@ class AccountController extends Controller
     {
         $accounts = (new AccountCollection())->all();
 
-        $accounts = array_slice((array)$accounts, -30);
-
+        $accounts = array_slice((array)$accounts, -50);
+        //echo '<pre>';print_r($accounts);echo '</pre>';exit;
         foreach ($accounts as $account) {
 
             $model = Account::where('login', $account['login'])->first();
@@ -44,33 +46,51 @@ class AccountController extends Controller
 
     /**
      * подгружаем активность за период
+     *
+     * //TZ Asia/Yekaterinburg
      */
     public function activity()
     {
         $activities = (new ActivityCollection())->all();
 
+        $activities = array_slice((array)$activities, -200);
+       // echo '<pre>';print_r($activities);echo '</pre>';exit;
         foreach ($activities as $activity) {
 
-            $model = Account::where('login', $activity['User login'])->first();
+            try {
 
-            if($model) {
+                $model = Account::where('login', $activity['User login'])->first();
 
-                $model->spent_sale = $activity['Spent sum'];
-                $model->avg_sale = $activity['Average check'];
-                $model->sum_sale = explode('.', $activity['Amount of replenishment'])[0];
+                if(empty($model) || $model->current_date == null) continue;
 
-                $model->avg_session = $activity['Average session time (hour)'];
+                $datetime_current = Carbon::parse($model->current_date)->format('Y-m-d H:i:s');
 
-                $model->monday = $activity['Monday'];
-                $model->tuesday = $activity['Tuesday'];
-                $model->wednesday = $activity['Wednesday'];
-                $model->thursday = $activity['Thursday'];
-                $model->friday = $activity['Friday'];
-                $model->saturday = $activity['Saturday'];
-                $model->sunday = $activity['Sunday'];
+                $datetime_last = Carbon::parse($activity['Last visit date'])->format('Y-m-d H:i:s');
 
-                $model->status = 'Обогащено';
-                $model->save();
+//                echo '<pre>';print_r($datetime_current.' < '.$datetime_last);echo '</pre>';
+
+                if($datetime_current < $datetime_last) {
+
+                    $model->spent_sale = $activity['Spent sum'];
+                    $model->avg_sale = $activity['Average check'];
+                    $model->sum_sale = explode('.', $activity['Amount of replenishment'])[0];
+
+                    $model->avg_session = $activity['Average session time (hour)'];
+
+                    $model->monday = $activity['Monday'];
+                    $model->tuesday = $activity['Tuesday'];
+                    $model->wednesday = $activity['Wednesday'];
+                    $model->thursday = $activity['Thursday'];
+                    $model->friday = $activity['Friday'];
+                    $model->saturday = $activity['Saturday'];
+                    $model->sunday = $activity['Sunday'];
+
+                    $model->status = 'Обогащено';
+                    $model->save();
+                }
+            } catch (\Exception $exception) {
+
+                Log::warning(__METHOD__.' : '.$exception->getMessage().' '.$exception->getLine());
             }
         }
     }
@@ -78,7 +98,7 @@ class AccountController extends Controller
     //отправка новых
     public function send()
     {
-        $accounts = Account::where('lead_id', null)->get();
+        $accounts = Account::where('updated_at', '>', Carbon::now()->subMinutes(15))->get();
 
         if($accounts->count() > 0) {
 
@@ -86,65 +106,81 @@ class AccountController extends Controller
 
             foreach ($accounts as $account) {
 
-                if(strpos($account->login, '+7')  === false) continue;
+                try {
 
-                if($account->count_session == 0 || $account->count_session == null)  {
+                    if(strpos($account->login, '+7')  === false) continue;
 
-                    $account->delete();
+                    if($account->count_session == 0 || $account->count_session == null)  {
 
-                    continue;
+                        $account->delete();
+
+                        continue;
+                    }
+
+                    if($account->contact_id == null) {
+
+                        $contact = Contacts::search(substr($account->login, -10), $amocrm);
+                    } else
+                        $contact = $amocrm->service->contacts()->find($account->contact_id);
+
+                    if(empty($contact)) {
+
+                        $contact = Contacts::create($amocrm, $account->first_name.' '.$account->last_name);
+                    }
+
+                    if($account->lead_id == null) {
+
+                        $lead = Leads::search($contact, $amocrm);
+                    } else {
+
+                        $lead = $amocrm->service->leads()->find($account->lead_id);
+                    }
+
+                    $contact = Contacts::update($contact, [
+                        'Телефон'       => $account->login,
+                        'Дата рождения' => $account->birth_date,
+
+                    ], ['name' => $account->first_name.' '.$account->last_name]);
+
+                    if(empty($lead)) {
+
+                        $lead = Leads ::create($contact, [
+                            'status_id' => env('AMO_STATUS_DAY_1'),
+                            'name'      => $account->first_name.' '.$account->last_name,
+                        ], []);
+                    }
+
+                    $lead = Leads::update($lead, [
+                        'status_id' => Account::getStatusId($account->count_session),
+                        'sale'      => $account->sum_sale,
+                    ], [
+                        'Дата регистрации' => $account->registration_date,
+                        'Средний чек' => $account->avg_sale,
+                        'Сумма потраченных денег' => $account->spent_sale,
+                        'Количество сессий' => $account->count_session,
+                        'Дата последнего посещения' => $account->current_date,
+                        'Среднее время сеанса (час)' => $account->avg_session,
+                        'Понедельник' => $account->monday,
+                        'Вторник' => $account->tuesday,
+                        'Среда' => $account->wednesday,
+                        'Четверг' => $account->thursday,
+                        'Пятница' => $account->friday,
+                        'Суббота' => $account->saturday,
+                        'Воскресенье' => $account->sunday,
+                    ]);
+
+                    $account->lead_id = $lead->id;
+                    $account->status_id = $lead->status_id;
+                    $account->contact_id = $contact->id;
+                    $account->status = 'Отправлено';
+                    $account->save();
+
+                    unset($account); unset($contact); unset($lead);
+
+                } catch (\Exception $exception) {
+
+                    Log::warning(__METHOD__.' : '.$exception->getMessage().' '.$exception->getLine());
                 }
-
-                $contact = Contacts::search(substr($account->login, -10), $amocrm);
-
-                if($contact == null) {
-
-                    $contact = Contacts::create($amocrm, $account->first_name.' '.$account->last_name);
-                } else {
-
-                    $lead = Leads::search($contact, $amocrm);
-                }
-
-                $contact = Contacts::update($contact, [
-                    'Телефон'       => $account->login,
-                    'Дата рождения' => $account->birth_date,
-
-                ], ['name' => $account->first_name.' '.$account->last_name]);
-
-                if(empty($lead)) {
-
-                    $lead = Leads ::create($contact, [
-                        'status_id' => env('AMO_STATUS_DAY_1'),
-                        'name'      => $account->first_name.' '.$account->last_name,
-                    ], []);
-                }
-//dd($account->spent_sale.' => '.explode('.', $account->spent_sale)[0]);
-                $lead = Leads::update($lead, [
-                    'status_id' => Account::getStatusId($account->count_session),
-                    'sale'      => $account->sum_sale,
-                ], [
-                    'Дата регистрации' => $account->registration_date,
-                    'Средний чек' => $account->avg_sale,
-                    'Сумма потраченных денег' => $account->spent_sale,
-                    'Количество сессий' => $account->count_session,
-                    'Дата последнего посещения' => $account->current_date,
-                    'Среднее время сеанса (час)' => $account->avg_session,
-                    'Понедельник' => $account->monday,
-                    'Вторник' => $account->tuesday,
-                    'Среда' => $account->wednesday,
-                    'Четверг' => $account->thursday,
-                    'Пятница' => $account->friday,
-                    'Суббота' => $account->saturday,
-                    'Воскресенье' => $account->sunday,
-                ]);
-
-                $account->lead_id = $lead->id;
-                $account->status_id = $lead->status_id;
-                $account->contact_id = $contact->id;
-                $account->status = 'Отправлено';
-                $account->save();
-
-                unset($account); unset($contact); unset($lead);
             }
         }
     }
